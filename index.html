@@ -478,6 +478,12 @@ function selectRoom(type,roomId){
   refreshPicker(type);
 }
 
+function openRoom(key){
+  const d=window._roomReg&&window._roomReg[key];
+  if(!d)return;
+  S.editRoom=d;
+  render();
+}
 function deleteRoom(homeRoom, name){
   if(!confirm(`「${name||'この部屋'}」の入居者情報を削除しますか？\n（Firebaseの手動入力データのみ削除されます）`))return;
   db.ref('rooms/'+homeRoom).remove().then(()=>{S.editRoom=null;render();});
@@ -492,6 +498,8 @@ function residentH(){
   const DL_BG={1:'#EDE9FE',2:'#DBEAFE',3:'#DCFCE7',4:'#FEF9C3',5:'#FFE4E6',6:'#F3E8FF'};
   const DL_TX={1:'#5B21B6',2:'#1D4ED8',3:'#166534',4:'#854D0E',5:'#9F1239',6:'#6D28D9'};
 
+  // Room click registry (avoids JSON.stringify issues in onclick attrs)
+  window._roomReg={};
   // Build resident map from cases (auto)
   const resMap={};
   S.cases.forEach(c=>{
@@ -593,7 +601,8 @@ function residentH(){
       const k=homeName+'_'+r.id;
       const res=resMap[k];
       const isOccupied=res&&res.name;
-      const onclick=`S.editRoom={homeRoom:'${k}',homeName:'${e(homeName)}',roomId:'${r.id}',existing:${JSON.stringify(isOccupied?res:null)}};render()`;
+      window._roomReg[k]={homeRoom:k,homeName:homeName,roomId:r.id,existing:isOccupied?res:null};
+      const onclick=`openRoom('${k}')`;
       const hasOut=res&&res.moveOut;
 
       if(isOccupied){
