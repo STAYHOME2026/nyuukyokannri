@@ -54,7 +54,7 @@ const TODAY=new Date(),TODAY_STR=TODAY.toISOString().split('T')[0];
 const GRP={active:{label:'対応中',fill:'#EFF6FF',border:'#BFDBFE',text:'#1D4ED8',accent:'#3B82F6'},visit:{label:'見学',fill:'#F5F3FF',border:'#DDD6FE',text:'#5B21B6',accent:'#7C3AED'},trial:{label:'体験',fill:'#FDF2F8',border:'#FBCFE8',text:'#9D174D',accent:'#DB2777'},meeting:{label:'面談',fill:'#F0FDFA',border:'#99F6E4',text:'#0F766E',accent:'#0D9488'},preinit:{label:'入居前',fill:'#F0FDF4',border:'#BBF7D0',text:'#166534',accent:'#16A34A'},done:{label:'対応済',fill:'#F9FAFB',border:'#E5E7EB',text:'#6B7280',accent:'#9CA3AF'}};
 const GK=Object.keys(GRP);
 const DS=[{v:'initial',l:'初回問い合わせ',g:'active'},{v:'checking',l:'詳細確認中',g:'active'},{v:'review',l:'受入可否審議中',g:'active'},{v:'onhold',l:'保留・順番待ち',g:'active'},{v:'visit_sched',l:'見学設定中',g:'visit'},{v:'visit_wait',l:'見学実施待ち',g:'visit'},{v:'visit_reply',l:'見学済・返答待ち',g:'visit'},{v:'trial_sched',l:'体験設定中',g:'trial'},{v:'trial_wait',l:'体験実施待ち',g:'trial'},{v:'trial_reply',l:'体験済・返答待ち',g:'trial'},{v:'meeting',l:'面談',g:'meeting'},{v:'pre_wait',l:'入居予定（空き待ち）',g:'preinit'},{v:'pre_proc',l:'入居手続中',g:'preinit'},{v:'pre_move',l:'入居待（引越待）',g:'preinit'},{v:'done_in',l:'入居完了',g:'done'},{v:'done_rej',l:'審議落ち',g:'done'},{v:'done_dec',l:'入居者側辞退',g:'done'},{v:'done_lost',l:'音信不通',g:'done'}];
-const DH=['東山五条','伏見稲荷駅前','嵯峨嵐山','下鴨神社東','鞍馬口東棟','鞍馬口西棟','千本北山','希望無し','その他・未定'];
+const DH=['東山五条','伏見稲荷駅前','伏見稲荷駅南','嵯峨嵐山','下鴨神社東','鞍馬口東棟','鞍馬口西棟','千本北山','二条城北','希望無し','その他・未定'];
 const DA=['木下','山田','葛上','吉村','栃下','その他'];
 const AT=[{v:'call',l:'電話連絡',i:'📞'},{v:'visit',l:'見学',i:'🏠'},{v:'trial',l:'体験',i:'🛏'},{v:'meeting',l:'面談',i:'🤝'},{v:'mail',l:'メール・書類',i:'✉️'},{v:'other',l:'その他',i:'📋'}];
 const SO=[{v:'num_asc',l:'No.昇順'},{v:'num_desc',l:'No.降順'},{v:'date_desc',l:'最終連絡 新しい順'},{v:'date_asc',l:'最終連絡 古い順'},{v:'days_desc',l:'空き期間 長い順'},{v:'priority',l:'優先度順'}];
@@ -62,7 +62,7 @@ const SEED=[{"id":"xl_1","num":1,"name":"女性（醍醐病院）","age":null,"g
 
 let S={cases:[],sts:[...DS.map(d=>({value:d.v,label:d.l,group:d.g}))],homes:[...DH],assignees:[...DA],
   tab:'dash',editId:null,loading:true,
-  sortBy:'num_asc',showDone:true,fg:'all',cm:'weekly',
+  sortBy:'num_asc',showDone:true,fg:'all',cm:'weekly',stf:'',
   qSel:'',qAt:'call',qDate:TODAY_STR,qSt:'',qMemo:'',qQ:'',
   nlSt:'',ngSt:'active',nhH:'',naA:''};
 
@@ -92,9 +92,22 @@ function dashH(){
   const tot=Object.entries(g).filter(([k])=>k!=='done').reduce((s,[,v])=>s+v,0);
   const sc={};S.cases.forEach(c=>{sc[c.status]=(sc[c.status]||0)+1;});
   const mx=Math.max(...GK.map(k=>g[k]||0),1);
-  const m={};S.cases.forEach(c=>{if(!c.firstContactDate)return;const k=S.cm==='weekly'?iw(c.firstContactDate):c.firstContactDate.slice(0,7);m[k]=(m[k]||0)+1;});
-  const cd=Object.entries(m).sort().slice(-10).map(([k,v])=>({label:S.cm==='weekly'?wl(k):k.replace(/\d{4}-(\d{2})/,(_,mo)=>`${parseInt(mo)}月`),count:v}));
-  const cmax=Math.max(...cd.map(d=>d.count),1),sw=cd.length*56;
+  const m={},mv={},mt={},mi={};
+  S.cases.forEach(c=>{
+    if(!c.firstContactDate)return;
+    const k=S.cm==='weekly'?iw(c.firstContactDate):c.firstContactDate.slice(0,7);
+    m[k]=(m[k]||0)+1;
+  });
+  if(S.cm==='weekly'){
+    S.cases.forEach(c=>{
+      if(c.visitDate){const k=iw(c.visitDate);mv[k]=(mv[k]||0)+1;}
+      if(c.trialDate){const k2=c.trialDate.match(/\d{4}-\d{2}-\d{2}/);if(k2)mt[iw(k2[0])]=(mt[iw(k2[0])]||0)+1;}
+      if(c.moveInDate){const k3=c.moveInDate.match(/\d{4}-\d{2}-\d{2}/);if(k3)mi[iw(k3[0])]=(mi[iw(k3[0])]||0)+1;}
+    });
+  }
+  const allKeys=[...new Set([...Object.keys(m),...Object.keys(mv),...Object.keys(mt),...Object.keys(mi)])].sort().slice(-10);
+  const cd=allKeys.map(k=>({label:S.cm==='weekly'?wl(k):k.replace(/\d{4}-(\d{2})/,(_,mo)=>`${parseInt(mo)}月`),count:m[k]||0,visit:mv[k]||0,trial:mt[k]||0,movin:mi[k]||0}));
+  const cmax=Math.max(...cd.map(d=>Math.max(d.count,d.visit||0,d.trial||0,d.movin||0)),1),sw=cd.length*(S.cm==='weekly'?80:56);
   return`<div class="pg">
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
     ${[{l:'アクティブ案件',v:tot,c:'#3B82F6',b:'#EFF6FF'},{l:'アラート（3日以上）',v:a.length,c:'#EF4444',b:'#FEF2F2'},{l:'入居完了（累計）',v:S.cases.filter(c=>c.status==='done_in').length,c:'#16A34A',b:'#F0FDF4'},{l:'総問い合わせ',v:S.cases.length,c:'#6B7280',b:'#F9FAFB'}].map(k=>`<div class="cd" style="background:${k.b};border-color:${k.c}33;padding:16px 14px"><div style="font-size:32px;font-weight:800;color:${k.c};line-height:1">${k.v}</div><div style="font-size:11px;color:${k.c};font-weight:600;margin-top:5px">${k.l}</div></div>`).join('')}
@@ -122,12 +135,22 @@ function dashH(){
       <div style="font-weight:700;font-size:13px;color:#374151">新規問い合わせ件数</div>
       <div style="display:flex;background:#F1F5F9;border-radius:8px;padding:2px;gap:2px">${[['weekly','週別'],['monthly','月別']].map(([mode,l])=>`<button onclick="S.cm='${mode}';render()" style="padding:5px 14px;border-radius:6px;border:none;cursor:pointer;font-size:12px;font-weight:600;font-family:inherit;background:${S.cm===mode?'white':'transparent'};color:${S.cm===mode?'#111827':'#9CA3AF'}">${l}</button>`).join('')}</div>
     </div>
-    ${cd.length===0?'<div style="text-align:center;color:#9CA3AF;padding:20px;font-size:12px">データなし</div>':`<div style="overflow-x:auto"><svg viewBox="0 0 ${sw} 160" style="width:100%;min-width:${sw}px;height:160px">${cd.map((d,i)=>{const bh=Math.round((d.count/cmax)*110),x=i*56+8,y=120-bh;return`<g><rect x="${x}" y="${y}" width="40" height="${bh}" fill="#3B82F6" rx="3"/><text x="${x+20}" y="${y-4}" text-anchor="middle" font-size="10" fill="#374151">${d.count}</text><text x="${x+20}" y="138" text-anchor="middle" font-size="9" fill="#9CA3AF">${e(d.label)}</text></g>`;}).join('')}<line x1="0" y1="120" x2="${sw}" y2="120" stroke="#E5E7EB" stroke-width="1"/></svg></div>`}
+    ${cd.length===0?'<div style="text-align:center;color:#9CA3AF;padding:20px;font-size:12px">データなし</div>':`<div style="overflow-x:auto"><svg viewBox="0 0 ${sw} ${S.cm==='weekly'?165:160}" style="width:100%;min-width:${sw}px;height:${S.cm==='weekly'?165:160}px">${cd.map((d,i)=>{
+  if(S.cm==='weekly'){
+    const bw=16,gap=2,x0=i*80+4;
+    const bars=[{c:d.count,fill:'#3B82F6',lbl:'問合'},{c:d.visit||0,fill:'#7C3AED',lbl:'見学'},{c:d.trial||0,fill:'#DB2777',lbl:'体験'},{c:d.movin||0,fill:'#16A34A',lbl:'入居'}];
+    return`<g>${bars.map((b,j)=>{const bh=Math.round((b.c/cmax)*110),bx=x0+j*(bw+gap),by=120-bh;return b.c>0?`<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" fill="${b.fill}" rx="2"/><text x="${bx+bw/2}" y="${by-3}" text-anchor="middle" font-size="9" fill="${b.fill}">${b.c}</text>`:''}).join('')}<text x="${x0+38}" y="138" text-anchor="middle" font-size="9" fill="#9CA3AF">${e(d.label)}</text></g>`;
+  } else {
+    const bh=Math.round((d.count/cmax)*110),x=i*56+8,y=120-bh;
+    return`<g><rect x="${x}" y="${y}" width="40" height="${bh}" fill="#3B82F6" rx="3"/><text x="${x+20}" y="${y-4}" text-anchor="middle" font-size="10" fill="#374151">${d.count}</text><text x="${x+20}" y="138" text-anchor="middle" font-size="9" fill="#9CA3AF">${e(d.label)}</text></g>`;
+  }}).join('')}<line x1="0" y1="120" x2="${sw}" y2="120" stroke="#E5E7EB" stroke-width="1"/>
+${S.cm==='weekly'?`<g><rect x="2" y="148" width="10" height="6" fill="#3B82F6" rx="1"/><text x="14" y="154" font-size="8" fill="#374151">問合せ</text><rect x="52" y="148" width="10" height="6" fill="#7C3AED" rx="1"/><text x="64" y="154" font-size="8" fill="#374151">見学</text><rect x="92" y="148" width="10" height="6" fill="#DB2777" rx="1"/><text x="104" y="154" font-size="8" fill="#374151">体験</text><rect x="132" y="148" width="10" height="6" fill="#16A34A" rx="1"/><text x="144" y="154" font-size="8" fill="#374151">入居</text></g>`:''}</svg></div>`}
   </div></div>`;}
 
 function listH(){
   const a=al(),g=gc();
   let rows=S.fg==='all'?(S.showDone?S.cases:S.cases.filter(c=>gst(c.status).group!=='done')):S.fg==='alert'?a:S.cases.filter(c=>gst(c.status).group===S.fg);
+  if(S.stf)rows=rows.filter(c=>c.status===S.stf);
   rows=[...rows].sort((a,b)=>{switch(S.sortBy){case'num_asc':return(a.num||0)-(b.num||0);case'num_desc':return(b.num||0)-(a.num||0);case'date_desc':return(b.lastActionDate||'').localeCompare(a.lastActionDate||'');case'date_asc':return(a.lastActionDate||'').localeCompare(b.lastActionDate||'');case'days_desc':return ds(b.lastActionDate)-ds(a.lastActionDate);case'priority':return(a.priority||2)-(b.priority||2);default:return 0;}});
   return`<div class="pg">
   <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
@@ -136,9 +159,20 @@ function listH(){
     ${GK.map(k=>{const gi=GRP[k];return`<button class="pill" onclick="S.fg='${k}';render()" style="background:${S.fg===k?gi.text:gi.fill};color:${S.fg===k?'white':gi.text};border-color:${gi.border}">${gi.label}(${g[k]||0})</button>`;}).join('')}
   </div>
   <div style="display:flex;gap:10px;margin-bottom:12px;align-items:center;flex-wrap:wrap">
-    <select onchange="S.sortBy=this.value;render()" style="width:auto;padding:6px 10px;font-size:12px">${SO.map(o=>`<option value="${o.v}"${S.sortBy===o.v?' selected':''}>${o.l}</option>`).join('')}</select>
-    ${(S.fg==='all'||S.fg==='done')?`<label style="display:flex;align-items:center;gap:5px;font-size:12px;color:#6B7280;cursor:pointer"><input type="checkbox" ${S.showDone?'checked':''} onchange="S.showDone=this.checked;render()"> 対応済みを表示</label>`:''}
-    <span style="font-size:12px;color:#9CA3AF;margin-left:auto">${rows.length}件表示</span>
+    <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+      <span style="font-size:11px;color:#9CA3AF;white-space:nowrap">並替</span>
+      <select onchange="S.sortBy=this.value;render()" style="width:auto;padding:5px 8px;font-size:12px">${SO.map(o=>`<option value="${o.v}"${S.sortBy===o.v?' selected':''}>${o.l}</option>`).join('')}</select>
+    </div>
+    <div style="display:flex;align-items:center;gap:4px;flex-shrink:0">
+      <span style="font-size:11px;color:#9CA3AF;white-space:nowrap">ステータス</span>
+      <select onchange="S.stf=this.value;render()" style="width:auto;padding:5px 8px;font-size:12px;max-width:160px;${S.stf?'border-color:#3B82F6;color:#1D4ED8;font-weight:700;':''}">
+        <option value="">すべて</option>
+        ${GK.map(g=>`<optgroup label="── ${GRP[g].label}">${S.sts.filter(s=>s.group===g).map(s=>`<option value="${s.value}"${S.stf===s.value?' selected':''}>${s.label}</option>`).join('')}</optgroup>`).join('')}
+      </select>
+      ${S.stf?`<button onclick="S.stf='';render()" style="padding:3px 7px;font-size:11px;border:1px solid #D1D5DB;border-radius:5px;background:white;cursor:pointer;color:#6B7280;font-family:inherit">✕</button>`:''}
+    </div>
+    ${(S.fg==='all'||S.fg==='done')?`<label style="display:flex;align-items:center;gap:5px;font-size:12px;color:#6B7280;cursor:pointer;flex-shrink:0"><input type="checkbox" ${S.showDone?'checked':''} onchange="S.showDone=this.checked;render()"> 対応済み表示</label>`:''}
+    <span style="font-size:12px;color:#9CA3AF;margin-left:auto;flex-shrink:0">${rows.length}件</span>
   </div>
   <div class="cd" style="overflow:hidden"><div style="overflow-x:auto">
   <table>
@@ -227,7 +261,7 @@ function detailH(){
     <div class="st">基本情報</div>
     <div class="r2">
       <div><label class="fld">氏名 *</label><input id="fn" type="text" value="${v('name')}" placeholder="例：田中 花子"></div>
-      <div class="r2" style="margin-bottom:0"><div><label class="fld">年齢</label><input id="fa" type="number" value="${v('age')}" placeholder="35"></div><div><label class="fld">性別</label><select id="fg"><option${(f.gender||'女性')==='女性'?' selected':''}>女性</option><option${f.gender==='男性'?' selected':''}>男性</option></select></div></div>
+      <div class="r2" style="margin-bottom:0"><div><label class="fld">年齢</label><input id="fa" type="text" value="${v('age')}" placeholder="例：35 / 40代 / 不明"></div><div><label class="fld">性別</label><select id="fg"><option${(f.gender||'女性')==='女性'?' selected':''}>女性</option><option${f.gender==='男性'?' selected':''}>男性</option></select></div></div>
     </div>
     <div class="r2">
       <div><label class="fld">優先度</label><select id="fp"><option value="1"${f.priority==1?' selected':''}>🔴 高（優先入居）</option><option value="2"${(f.priority||2)==2?' selected':''}>🟡 中</option><option value="3"${f.priority==3?' selected':''}>🟢 低</option></select></div>
@@ -238,7 +272,8 @@ function detailH(){
       <div><label class="fld">希望ホーム</label><select id="fh">${optH(S.homes,f.preferredHome)}</select></div>
     </div>
     <div class="st">問い合わせ情報</div>
-    <div class="r2"><div><label class="fld">初回連絡日</label><input id="fcd" type="date" value="${v('firstContactDate')}"></div><div><label class="fld">電話番号</label><input id="fph" type="tel" value="${v('phone')}" placeholder="075-000-0000"></div></div>
+    <div class="r2"><div><label class="fld">電話番号</label><input id="fph" type="tel" value="${v('phone')}" placeholder="075-000-0000"></div><div></div></div>
+    <div class="r2"><div><label class="fld">入居希望時期</label><input id="fwt" type="text" value="${v('moveInWish')}" placeholder="例：できるだけ早め / 2026年6月ごろ / 未定"></div><div><label class="fld">初回連絡日</label><input id="fcd2" type="date" value="${v('firstContactDate')}"></div></div>
     <div class="r2"><div><label class="fld">紹介者・連絡してきた方</label><input id="fref" type="text" value="${v('referrer')}" placeholder="例：かけはし・川越病院"></div><div><label class="fld">担当者名</label><input id="frn" type="text" value="${v('referrerName')}" placeholder="例：〇〇様"></div></div>
     <div style="margin-bottom:12px"><label class="fld">障がい・手帳・アレルギーなど</label><input id="fdis" type="text" value="${v('disability')}" placeholder="例：精神手帳2級・ADHD"></div>
     <div class="st">見学・体験・入居</div>
@@ -294,10 +329,10 @@ function svCase(){
   const existing=S.editId?S.cases.find(x=>x.id===S.editId):null;
   const c={
     id:S.editId||gi(),num:existing?.num||(Math.max(0,...S.cases.map(c=>c.num||0))+1),
-    name,age:parseInt((g('fa')||{}).value)||null,gender:(g('fg')||{}).value||'女性',
+    name,age:(g('fa')||{}).value||null,gender:(g('fg')||{}).value||'女性',
     priority:parseInt((g('fp')||{}).value)||2,assignee:(g('fas')||{}).value||'その他',
     status:(g('fst')||{}).value||'initial',preferredHome:(g('fh')||{}).value||'その他・未定',
-    firstContactDate:(g('fcd')||{}).value||TODAY_STR,lastActionDate:(g('fla')||{}).value||TODAY_STR,
+    firstContactDate:(g('fcd2')||{}).value||TODAY_STR,lastActionDate:(g('fla')||{}).value||TODAY_STR,moveInWish:(g('fwt')||{}).value||'',
     phone:(g('fph')||{}).value||'',referrer:(g('fref')||{}).value||'',referrerName:(g('frn')||{}).value||'',
     disability:(g('fdis')||{}).value||'',visitDate:(g('fvd')||{}).value||'',visitAssignee:(g('fva')||{}).value||'',
     trialDate:(g('ftd')||{}).value||'',trialHome:(g('fth')||{}).value||'',
